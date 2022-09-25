@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from itertools import compress
+from unittest.mock import call
 
 import telegram
 from telegram import (
@@ -27,8 +28,9 @@ from vkbottle import API, UserPolling
 from vkbottle.user import User
 from vkbottle_types.objects import MessagesConversationPeerType
 
-from keyboards import set_keyboard_1, set_keyboard_8
+from helper import set_keyboard_1, set_keyboard_8
 from messageprocessor import MessageProcessor
+from chatsprocessor import ChatsProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -41,8 +43,6 @@ TG_TOKEN = os.environ["TG_TOKEN"]
 
 POLLING = UserPolling(api=API(VK_TOKEN))
 
-POLLING.api.messages.get_by_id
-
 
 async def run_polling(context):
     async for event in POLLING.listen():
@@ -51,7 +51,7 @@ async def run_polling(context):
             # vk_api Event class works only with ver 3 longpoll
             # while vkbottle uses default version 0
             if (
-                event.type == VkEventType.MESSAGE_NEW and event.to_me
+                event.type == VkEventType.MESSAGE_NEW  # and event.to_me
             ):  # for testing purposes
                 logger.info(f"Entered new message")
                 await context["message_processor"].process(event)
@@ -61,17 +61,16 @@ async def answer_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     await query.answer()
 
-    callback_data = query.data.split(".")
+    callback_data = query.data.split(".", 2)  # if conv_name consists of some dots .
 
-    context.bot_data["message_processor"].active_conversation_id = int(callback_data[0])
-    context.bot_data["message_processor"].active_conversation_name = callback_data[1]
+    if callback_data[0] == "answer":
+        output = context.bot_data["message_processor"].set_active_chat(callback_data)
+        message = await query.message.reply_text(**output)
+        await message.pin()
 
-    output = f"Now talking with {context.bot_data['message_processor'].active_conversation_name}"
-    message = await query.message.reply_text(
-        text=output, parse_mode=context.bot_data["message_processor"].parse_mode
-    )
-    await message.pin()
-    context.bot_data["message_processor"].trailing = False
+    elif callback_data[0] == "chat":
+        output = await context.bot_data["chats_processor"].set_chat_page(callback_data)
+        await query.message.edit_text(**output)
 
 
 async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,54 +96,9 @@ async def now(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def chats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ## need review
-    chats = await POLLING.api.messages.get_conversations(count=10)
-    outputs = []
-    callbacks = []
-    # print(chats)
-    # print("test")
-
-    async def process_chat(i):
-        print(chats.items[i].conversation.peer.type)
-        if chats.items[i].conversation.peer.type == MessagesConversationPeerType.CHAT:
-            print("CHAT CHAT")
-            output = f"Беседа {chats.items[i].conversation.chat_settings.title}"
-            callback_object = (
-                f"chat.{chats.items[i].conversation.peer.id}."
-                + f"{chats.items[i].conversation.chat_settings.title}"
-            )
-            return output, callback_object
-        elif chats.items[i].conversation.peer.type == MessagesConversationPeerType.USER:
-            print("USER USER")
-            user_info = await POLLING.api.users.get(chats.items[i].conversation.peer.id)
-            output = f"{user_info[0].first_name} " + f"{user_info[0].last_name}"
-            callback_object = (
-                f"user.{chats.items[i].conversation.peer.id}."
-                + f"{user_info[0].first_name} {user_info[0].last_name}"
-            )
-            return output, callback_object
-        elif (
-            chats.items[i].conversation.peer.type == MessagesConversationPeerType.GROUP
-        ):
-            group_info = await POLLING.api.groups.get_by_id(
-                abs(chats.items[i].conversation.peer.id)
-            )
-            output = f"Сообщество {group_info[0].name}"
-            callback_object = (
-                f"group.{abs(chats.items[i].conversation.peer.id)}.{group_info[0].name}"
-            )
-            return output, callback_object
-
-    outputs = await asyncio.gather(*[process_chat(i) for i in range(8)])
-    outputs = [item for sublist in outputs for item in sublist]
-
-    reply_markup = set_keyboard_8(*(outputs[::2] + outputs[1::2]))
-    await update.message.reply_text(
-        text=f"Непрочитанных: {chats.unread_count}",
-        reply_markup=reply_markup,
-    )
-    # print(chats)
-    TRAILING_STATE["active"] = False
+    output = await context.bot_data["chats_processor"].set_chat_page()
+    await update.message.reply_text(**output)
+    context.bot_data["message_processor"].trailing = False
 
 
 async def main():
@@ -162,10 +116,7 @@ async def main():
     application.bot_data["message_processor"] = MessageProcessor(
         application.bot, POLLING, TG_CHAT_ID
     )
-    # application.bot_data["answer_type"] = None
-    # application.bot_data["answer_id"] = None
-    # application.bot_data["answer_name"] = None
-
+    application.bot_data["chats_processor"] = ChatsProcessor(POLLING)
     async with application:
 
         await application.updater.start_polling()

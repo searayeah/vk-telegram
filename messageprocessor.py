@@ -1,4 +1,4 @@
-from keyboards import set_keyboard_1
+from helper import set_keyboard_1
 
 
 class MessageProcessor:
@@ -78,7 +78,7 @@ class MessageProcessor:
 
         if not self.trailing:
             self.conversation_name = f"_{await self.get_name(self.vk_message.peer_id)}_"
-            self.answer = "Chat with : " + self.conversation_name
+            self.answer = "Chat with: " + self.conversation_name
 
         self.message_text = await self.form_message(self.vk_message)
         self.answer += "\n" + self.message_text
@@ -86,7 +86,9 @@ class MessageProcessor:
         self.conversation_active = (
             self.active_conversation_id == self.vk_message.peer_id
         )
-        self.callback_data = f"{self.vk_message.peer_id}.{self.conversation_name}"
+        self.callback_data = (
+            f"answer.{self.vk_message.peer_id}.{self.conversation_name}"
+        )
         self.reply_markup = (
             None
             if self.conversation_active
@@ -181,6 +183,18 @@ class MessageProcessor:
 
     def set_tab(self, level):
         return self.tab * level
+
+    def set_active_chat(self, callback_data):
+        self.active_conversation_id = int(callback_data[1])
+        self.active_conversation_name = callback_data[2]
+        self.trailing = False
+
+        output = {
+            "text": f"Now talking with {self.active_conversation_name}",
+            "parse_mode": self.parse_mode,
+        }
+
+        return output
 
     async def process(self, event):
         await self.set(event)

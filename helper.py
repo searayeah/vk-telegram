@@ -4,22 +4,59 @@ from telegram import (
 )
 
 
+def set_keyboard_7(
+    a,
+    callback_a,
+    b,
+    callback_b,
+    c,
+    callback_c,
+    d,
+    callback_d,
+    e,
+    callback_e,
+    f,
+    callback_f,
+    g,
+    callback_g,
+):
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(a, callback_data=str(callback_a)),
+                InlineKeyboardButton(b, callback_data=str(callback_b)),
+            ],
+            [
+                InlineKeyboardButton(c, callback_data=str(callback_c)),
+                InlineKeyboardButton(d, callback_data=str(callback_d)),
+            ],
+            [
+                InlineKeyboardButton(e, callback_data=str(callback_e)),
+                InlineKeyboardButton(f, callback_data=str(callback_f)),
+            ],
+            [
+                InlineKeyboardButton(g, callback_data=str(callback_g)),
+            ],
+        ]
+    )
+
+
 def set_keyboard_8(
     a,
-    b,
-    c,
-    d,
-    e,
-    f,
-    g,
-    h,
     callback_a,
+    b,
     callback_b,
+    c,
     callback_c,
+    d,
     callback_d,
+    e,
     callback_e,
+    f,
     callback_f,
+    g,
     callback_g,
+    h,
     callback_h,
 ):
     return InlineKeyboardMarkup(
